@@ -8,64 +8,75 @@ import pandas as pd
 from tensorflow import keras
 
 def player(prev_play, opponent_history=[], cont=[]):
-    
-    var = random.choice(['R', 'P', 'S'])
-    while len(opponent_history) == 0:
-        opponent_history.append(var)
-        cont.append(10)
-        return var
+    """
+    A function implementing the logic for a player that returns a play of Rock, Paper, or Scissors represented by the letters R, P, or S. 
+    This function utilizes a neural network LSTM with input consisting of the ten previous plays by the player and the next play by the opponent after ten movements by the player.
+
+    Parameters:
+    - prev_play (str): The previous play of the opponent.
+    - opponent_history (list): Stores the opponent's play history between function calls.
+    - cont (list): Stores the position where the opponent's play is stored.
+
+    Returns:
+    - str: The play chosen by the player (Rock: 'R', Paper: 'P', Scissors: 'S').
+    """
+    len_training = 331 # number of plays used to train the model
+    play = random.choice(['R', 'P', 'S']) # Initially, the play returned is random.
+    while len(opponent_history) == 0: # The first element of prev_play is always empty, so in this case, the first play of the player is stored.
+        opponent_history.append(play)
+        cont.append(10) # The first opponent's play must be stored in position 10.
+        return play
         
-    while 0< len(opponent_history) < 331:
+    while 0< len(opponent_history) < len_training:
         print('Historial del oponente: \n', opponent_history)
-        if len(opponent_history) == cont[0]:
+        if len(opponent_history) == cont[0]: #validate if necessary stores opponent play
             opponent_history.append(prev_play)
-            opponent_history.append(var)
-            c = cont[0]+11
+            opponent_history.append(play)
+            c = cont[0]+11 # next position of opponent play
             cont[0] = c
             print('C:   \n', c)
-            print('contador:  \n', cont[0])
-            #var = random.choice(['R', 'P', 'S'])
-        else:
-            opponent_history.append(var)
+            print('count:  \n', cont[0])
+            #play = random.choice(['R', 'P', 'S'])
+        else: 
+            opponent_history.append(play)
         time.sleep(1)
-        print('contador:   \n', cont[0])
-        return var
-    #print('Historial del oponente: ', opponent_history)
-    nombre_archivo = 'mi_archivo.txt'
-    with open(nombre_archivo, 'w') as archivo:
-        # Escribe cada elemento de la lista en una línea del archivo
+        print('count:   \n', cont[0])
+        return play
+    archive_name = 'mi_archivo.txt'
+    with open(archive_name, 'w') as archivo:
+        #writes each item(play) in the list to a line in the file
         for elemento in opponent_history:
             archivo.write(elemento)
+
     text = open('mi_archivo.txt', 'rb').read().decode(encoding='utf-8')
-    #print(f'Length of text: {len(text)} characters')
-    #print(text[:100])
-    #print(text)        
-    vocab = sorted(set(text))
-    #print('\n')
-    #print(f'{len(vocab)} unique characters')
+           
+    vocab = sorted(set(text)) # the unique characteres in text
+   
     example_texts = ['abcdefg', 'xyz']
-    chars = tf.strings.unicode_split(example_texts, input_encoding='UTF-8')
+    chars = tf.strings.unicode_split(example_texts, input_encoding='UTF-8') # the text split into tokens first
     #print(chars)
-    ids_from_chars = tf.keras.layers.StringLookup(vocabulary=list(vocab), mask_token=None)
+    ids_from_chars = tf.keras.layers.StringLookup(vocabulary=list(vocab), mask_token=None) #convert each character into a numeric ID
     ids = ids_from_chars(chars)
-    chars_from_ids = tf.keras.layers.StringLookup(vocabulary=ids_from_chars.get_vocabulary(), invert=True, mask_token=None)
+    chars_from_ids = tf.keras.layers.StringLookup(vocabulary=ids_from_chars.get_vocabulary(), invert=True, mask_token=None)#recover human-readable strings
     chars = chars_from_ids(ids)
     tf.strings.reduce_join(chars, axis=-1).numpy()
 
     def text_from_ids(ids):
+        """join the characters back into strings."""
         return tf.strings.reduce_join(chars_from_ids(ids), axis=-1)
     all_ids = ids_from_chars(tf.strings.unicode_split(text, 'UTF-8'))
-    ids_dataset = tf.data.Dataset.from_tensor_slices(all_ids)
+    ids_dataset = tf.data.Dataset.from_tensor_slices(all_ids)#convert the text vector into a stream of character indices.
     # for ids in ids_dataset.take(10):
     #     print(chars_from_ids(ids).numpy().decode('utf-8'))
     seq_length = 10
-    sequences = ids_dataset.batch(seq_length+1, drop_remainder=True)        
+    sequences = ids_dataset.batch(seq_length+1, drop_remainder=True) #convert these individual characters to sequences of the desired size       
     # for seq in sequences.take(1):
     #     print(chars_from_ids(seq))
     # for seq in sequences.take(5):
     #     print(text_from_ids(seq).numpy())
     
     def split_input_target(sequence):
+        """takes a sequence as input, duplicates, and shifts it to align the input and label for each timestep"""
         input_text = sequence[:-1]
         target_text = sequence[1:]
         return input_text, target_text
@@ -90,7 +101,7 @@ def player(prev_play, opponent_history=[], cont=[]):
         .batch(BATCH_SIZE, drop_remainder=True)
         .prefetch(tf.data.experimental.AUTOTUNE))
     
-    #print('dataset: ', dataset)        
+         
     # Length of the vocabulary in StringLookup Layer
     vocab_size = len(ids_from_chars.get_vocabulary())
     #print('vocab size: ', vocab_size)
@@ -118,6 +129,8 @@ def player(prev_play, opponent_history=[], cont=[]):
                 return x, states
             else:
                 return x
+            
+    #defines the model as a keras.Model subclass
     model = MyModel(
         vocab_size=vocab_size,
         embedding_dim=embedding_dim,
@@ -128,19 +141,21 @@ def player(prev_play, opponent_history=[], cont=[]):
     #print(dataset.take(1))
     #example_batch_predictions = model(dataset.take(1))
 
+    #Try the model
     for input_example_batch, target_example_batch in dataset.take(1):
         #global example_batch_predictions
         example_batch_predictions = model(input_example_batch)
         #print(example_batch_predictions.shape, "# (batch_size, sequence_length, vocab_size)")
 
-    #print('error: ' , example_batch_predictions)
-    #print(model)
-    #print('punto 2 de control ')
+    #sample from the output distribution, to get actual character indices. This distribution is defined by the logits over the character vocabulary.
     sampled_indices = tf.random.categorical(example_batch_predictions[0], num_samples=1)
     sampled_indices = tf.squeeze(sampled_indices, axis=-1).numpy()
     #print("Input:\n", text_from_ids(input_example_batch[0]).numpy())
     #print()
     #print("Next Char Predictions:\n", text_from_ids(sampled_indices).numpy())
+
+
+    #Train the model
     loss = tf.losses.SparseCategoricalCrossentropy(from_logits=True)
     example_batch_mean_loss = loss(target_example_batch, example_batch_predictions)
     #print("Prediction shape: ", example_batch_predictions.shape, " # (batch_size, sequence_length, vocab_size)")
@@ -155,14 +170,15 @@ def player(prev_play, opponent_history=[], cont=[]):
     checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
         filepath=checkpoint_prefix,
         save_weights_only=True)
-    
+    #Execute the training
     EPOCHS = 30
-    while len(opponent_history) == 331:
+    while len(opponent_history) == len_training:
         history = model.fit(dataset, epochs=EPOCHS, callbacks=[checkpoint_callback])
         tf.saved_model.save(model, 'Users\DISENOGRAFICO\Downloads\PPT')
         break
-        
+    #Generate text    
     class OneStep(tf.keras.Model):
+        """The following makes a single step prediction"""
         def __init__(self, model, chars_from_ids, ids_from_chars, temperature=1.0):
             super().__init__()
             self.temperature = temperature
@@ -208,34 +224,29 @@ def player(prev_play, opponent_history=[], cont=[]):
     
     #break
     #cont +=1
-    try:
+    try: # Each play, ten previous plays are taken for predict the next move
         restored = tf.saved_model.load('Users\DISENOGRAFICO\Downloads\PPT')
         one_step_model = OneStep(restored, chars_from_ids, ids_from_chars)    
-        #print('Caracter predicho: ', one_step_model)
-        start = time.time()
+        
         states = None
-        #next_char = tf.constant(['ROMEO:'])
+        
         next_char = tf.constant([text[-10:]])
-        #print('Text :', [text[-10:]])
-        #result = [text[-10:]]
+        
         result = [next_char]
         for n in range(1):
             next_char, states = one_step_model.generate_one_step(next_char, states=states)
             result.append(next_char)
         result = tf.strings.join(result)
-        end = time.time()
-        #print(result[0].numpy().decode('utf-8'), '\n\n' + '_'*80)
-        #print('\nRun time:', end - start)  
-        var = result[0].numpy().decode('utf-8')
-        var = var[-1]
+         
+        play = result[0].numpy().decode('utf-8')
+        play = play[-1]
             
-        #time.sleep(10)
-    #break
+       
     except UnboundLocalError:
     #restored = tf.saved_model.load('/tmp/adder')
         print('Modelo no entrenado :(')        
     finally:        
         #print('Jugada Número: ',cont)
         print('Resultado #', len(opponent_history))
-        opponent_history.append(var)
-        return var
+        opponent_history.append(play)
+        return play
